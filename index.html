@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Attendance — KalolyouvakMandal</title>
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0f1117" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+  <!-- Firebase config modal (bottom sheet) -->
+  <div class="modal-overlay" id="config-modal" style="display:none">
+    <div class="modal">
+      <div class="modal-title">🔥 Firebase Setup</div>
+      <p class="modal-subtitle">
+        Paste your Firebase config from
+        <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a>
+        → Project Settings → Your Apps.
+      </p>
+      <form class="config-form" id="config-form">
+        <input class="config-input" id="cfg-apiKey"            type="text" placeholder="apiKey *"  required />
+        <input class="config-input" id="cfg-authDomain"        type="text" placeholder="authDomain" />
+        <input class="config-input" id="cfg-databaseURL"       type="text" placeholder="databaseURL * (https://...)" required />
+        <input class="config-input" id="cfg-projectId"         type="text" placeholder="projectId" />
+        <input class="config-input" id="cfg-storageBucket"     type="text" placeholder="storageBucket" />
+        <input class="config-input" id="cfg-messagingSenderId" type="text" placeholder="messagingSenderId" />
+        <input class="config-input" id="cfg-appId"             type="text" placeholder="appId" />
+        <div class="modal-btn-row">
+          <button class="btn btn-primary" type="submit">🔗 Connect</button>
+          <button class="btn btn-secondary" type="button" id="dismiss-modal-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo">
+      <div class="logo-icon">📋</div>
+      <div class="logo-text">Kalolyouvak<span>Mandal</span></div>
+    </div>
+    <div class="header-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main-content">
+
+    <!-- ── MEMBERS (list only) ── -->
+    <section class="section active" id="section-members">
+      <div class="section-label">All Members · <span id="member-count">0</span></div>
+      <div class="member-list" id="member-list">
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <p>No members yet.<br>Tap ➕ below to add a member.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ADD MEMBER (separate panel) ── -->
+    <section class="section" id="section-add">
+      <div class="card">
+        <div class="card-title">Add New Member</div>
+        <form id="add-member-form">
+          <div class="form-group">
+            <label for="member-name">Full Name *</label>
+            <input id="member-name" type="text" placeholder="e.g. Ramesh Patel" required autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="member-phone">Phone Number</label>
+            <input id="member-phone" type="tel" placeholder="e.g. 9876543210" />
+          </div>
+          <button class="btn btn-primary" type="submit" id="add-member-btn">+ Add Member</button>
+        </form>
+      </div>
+
+      <div class="section-label">Manage Members · <span id="add-member-count">0</span></div>
+      <div class="member-list" id="add-member-list">
+        <!-- Members with delete buttons will appear here -->
+      </div>
+    </section>
+
+    <!-- ── ATTENDANCE (merged with Events, date-based) ── -->
+    <section class="section" id="section-attendance">
+      <div class="card">
+        <div class="card-title">Select Date</div>
+        <input type="date" class="event-selector" id="att-date-picker" />
+        <div class="bulk-row" style="margin-top:10px">
+          <button class="btn btn-secondary btn-sm" id="mark-all-present">✅ All Present</button>
+          <button class="btn btn-secondary btn-sm" id="mark-all-absent">❌ All Absent</button>
+        </div>
+      </div>
+
+      <div class="stats-bar" id="att-stats"></div>
+      <div class="attendance-list" id="attendance-list">
+        <div class="empty-state">
+          <div class="empty-icon">📅</div>
+          <p>Pick a date above to mark attendance.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── REPORTS ── -->
+    <section class="section" id="section-report">
+      <div class="card">
+        <div class="card-title">Filter by Date</div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label for="report-date-pick">Date</label>
+          <input type="date" id="report-date-pick" style="background:var(--input);border:1px solid var(--border);border-radius:8px;padding:11px 12px;color:var(--text);font-size:16px;width:100%;outline:none;" />
+        </div>
+        <div class="report-btn-row" style="margin-bottom:0">
+          <button class="btn btn-primary" id="generate-report-btn">📊 Generate</button>
+          <button class="btn btn-secondary" id="export-report-btn">⬇️ CSV</button>
+        </div>
+      </div>
+
+      <!-- Date history list -->
+      <div class="section-label" id="dates-label" style="display:none">Past Attendance Dates</div>
+      <div id="date-history-list"></div>
+
+      <div id="report-wrap">
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <p>Pick a date and tap Generate.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom nav (3 tabs) -->
+  <nav class="bottom-nav">
+    <button class="nav-tab active" data-tab="members">
+      <span class="nav-icon">👥</span>
+      Members
+    </button>
+    <button class="nav-tab" data-tab="add">
+      <span class="nav-icon">➕</span>
+      Add
+    </button>
+    <button class="nav-tab" data-tab="attendance">
+      <span class="nav-icon">✅</span>
+      Attendance
+    </button>
+    <button class="nav-tab" data-tab="report">
+      <span class="nav-icon">📊</span>
+      Report
+    </button>
+  </nav>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script src="app.js"></script>
+</body>
+</html>
